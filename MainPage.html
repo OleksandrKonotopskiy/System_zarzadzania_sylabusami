@@ -1,0 +1,229 @@
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+    <div class="container">
+        <div class="main-content">
+            <h1 class="main-title">System zarzadzania sylabusami</h1>
+            <div class="content" id="mainContent"></div>
+        </div>
+    </div>
+    <div class="floating-menu" id="floatingMenu">
+        <div class="user-info" id="userInfo"></div>
+        <nav class="menu" id="nav"></nav>
+        <a href="/logout" class="logout">Logout</a>
+        <button id="toggleMenuBtn" class="menu-toggle-btn">⮞</button>
+    </div>
+    <button id="showMenuBtn" class="showMenuBtn" style="display:none;">☰</button>
+    <div id="addCourseMsg" style="margin-top:10px;color:#ef6c00;"></div>
+
+    <script>
+        const userRole = window.roleFromServer;
+        const userName = window.usernameFromServer;
+
+
+        document.getElementById('userInfo').innerHTML =
+            `<div class="role">${userRole === 'teacher' ? 'Wykładowca' : 'Student'}</div>
+             <div class="name">${userName}</div>`;
+
+        let menuHtml = '';
+        if (userRole === 'teacher') {
+            menuHtml = `
+                <button class="active" data-section="courses">Moje kursy</button>
+                <button data-section="materials">Materiały</button>
+                <button data-section="syllabus">Dodaj sylabus</button>
+            `;
+        } else {
+            menuHtml = `
+                <button class="active" data-section="courses">Moje kursy</button>
+                <button data-section="materials">Materiały</button>
+            `;
+        }
+        document.getElementById('nav').innerHTML = menuHtml;
+
+   
+        function showContent(section) {
+            document.querySelectorAll('.menu button').forEach(btn => btn.classList.remove('active'));
+            const activeBtn = document.querySelector(`.menu button[data-section="${section}"]`);
+            if (activeBtn) activeBtn.classList.add('active');
+
+            if (section === 'courses') {
+                document.getElementById('mainContent').innerHTML = `
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+                        <input id="searchInput" type="text" placeholder="Wyszukiwanie..." style="padding:8px 14px;border-radius:6px;border:1px solid #333;background:#181c24;color:#fff;min-width:220px;">
+                        <button onclick="searchCourses()" style="background:#1976d2;color:#fff;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;">Szukaj</button>
+                    </div>
+                    <h2>Moje kursy</h2>
+                    <div id="coursesList">Ładowanie...</div>
+                `;
+                fetch('/api/my-courses').then(r => r.json()).then(courses => {
+                    let html = '';
+                    if (!courses.length) html = '<p>Kursów jeszcze nie ma.</p>';
+                    else html = courses.map(c => `
+                        <div class="course-card">
+                            ${c.image_url ? `<img src="${c.image_url}" alt="course" style="width:80px;height:80px;object-fit:cover;border-radius:8px;">` : ''}
+                            <div>
+                                <div style="font-size:20px;font-weight:600;color:#fff;">${c.title}</div>
+                                <div style="color:#b0b8c1;">${c.description}</div>
+                                <div style="font-size:13px;color:#888;">Autor: ${c.teacher_name || ''}</div>
+                                ${c.document_url ? `<button onclick="openSyllabus('${c.document_url}')" style="margin-top:10px;background:#1976d2;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;display:block;">Otwórz sylabus</button>` : ''}
+                                ${userRole === 'teacher' ? `<button class="delete-course-btn" onclick="deleteCourse('${c.id}')">Delete</button>` : ''}
+                                ${userRole === 'student' ? `<button class="delete-course-btn" onclick="unfollowCourse('${c.id}')" style="background:#b71c1c;">Unfollow</button>` : ''}
+                            </div>
+                        </div>
+                    `).join('');
+                    document.getElementById('coursesList').innerHTML = html;
+                });
+            }
+            else if (section === 'syllabus') {
+                document.getElementById('mainContent').innerHTML = `
+                <h2>Dodaj sylabus</h2>
+                        <form id="addCourseForm" enctype="multipart/form-data" style="background:#232837;padding:24px;border-radius:12px;max-width:420px;">
+                            <input name="title" type="text" placeholder="Tytuł kursu" required style="width:100%;margin-bottom:10px;padding:10px;border-radius:6px;border:1px solid #333;background:#181c24;color:#fff;">
+                            <textarea name="description" placeholder="Opis" required style="width:100%;margin-bottom:10px;padding:10px;border-radius:6px;border:1px solid #333;background:#181c24;color:#fff;"></textarea>
+
+                            <label for="imageInput" style="display:block;margin-bottom:8px;color:#b0b8c1;font-weight:500;">Zanotuj obraz kursu (jpg, png):</label>
+                            <input id="imageInput" name="image" type="file" accept="image/*" style="margin-bottom:16px;color:#fff;">
+
+                            <label for="docInput" style="display:block;margin-bottom:8px;color:#b0b8c1;font-weight:500;">Dodaj plik sylabusa (pdf, doc, docx, txt):</label>
+                            <input id="docInput" name="document" type="file" accept=".pdf,.doc,.docx,.txt" style="margin-bottom:16px;color:#fff;">
+
+                            <button type="submit" style="background:#1976d2;color:#fff;padding:10px 28px;border:none;border-radius:7px;font-size:17px;font-weight:600;cursor:pointer;">Dodaj kurs</button>
+                        </form>
+                        <div id="addCourseMsg" style="margin-top:10px;color:#ef6c00;"></div>
+                `;
+                document.getElementById('addCourseForm').onsubmit = async function(e) {
+                    e.preventDefault();
+                    const form = e.target;
+                    const formData = new FormData(form);
+                    document.getElementById('addCourseMsg').innerText = 'Dodajemy...';
+                    const res = await fetch('/api/courses', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+                    if (data.error) {
+                        document.getElementById('addCourseMsg').innerText = data.error;
+                    } else {
+                        document.getElementById('addCourseMsg').innerText = 'Kurs dodano!';
+                        form.reset();
+                    }
+                }
+            }
+            else if (section === 'materials') {
+                document.getElementById('mainContent').innerHTML = `
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+                        <input id="searchMaterialsInput" type="text" placeholder="Wyszukiwanie..." style="padding:8px 14px;border-radius:6px;border:1px solid #333;background:#181c24;color:#fff;min-width:220px;">
+                        <button onclick="searchMaterials()" style="background:#1976d2;color:#fff;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;">Szukaj</button>
+                    </div>
+                    <h2>Materiały</h2>
+                    <div id="materialsList">Ładowanie...</div>
+                `;
+                fetch('/api/courses').then(r => r.json()).then(courses => {
+                    let html = '';
+                    if (!courses.length) html = '<p>Materiały jeszcze nie są dostępne.</p>';
+                    else html = courses.map(c => `
+                        <div class="course-card">
+                            ${c.image_url ? `<img src="${c.image_url}" alt="course" style="width:80px;height:80px;object-fit:cover;border-radius:8px;">` : ''}
+                            <div>
+                                <div style="font-size:20px;font-weight:600;color:#fff;">${c.title}</div>
+                                <div style="color:#b0b8c1;">${c.description}</div>
+                                <div style="font-size:13px;color:#888;">Autor: ${c.teacher_name || ''}</div>
+                                ${c.document_url ? `<button onclick="openSyllabus('${c.document_url}')" style="margin-top:10px;background:#1976d2;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;display:block;">Otwórz sylabus</button>` : ''}
+                                ${userRole === 'student' ? `<button onclick="followCourse('${c.id}')" style="margin-top:10px;background:#43a047;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:14px;">Follow</button>` : ''}
+                            </div>
+                        </div>
+                    `).join('');
+                    document.getElementById('materialsList').innerHTML = html;
+                });
+            }
+        }
+
+        document.getElementById('nav').addEventListener('click', function(e) {
+            if (e.target.tagName === 'BUTTON') {
+                showContent(e.target.dataset.section);
+            }
+        });
+
+        window.onload = function() {
+            showContent('courses');
+        };
+
+        function openSyllabus(url) {
+            const fullUrl = location.origin + url;
+            window.open(fullUrl, '_blank');
+        }
+
+        window.followCourse = async function(courseId) {
+            const res = await fetch('/api/follow-course', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ courseId })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showContent('materials');
+            } else {
+                alert(data.error || 'Pomoc');
+            }
+        }
+
+        window.unfollowCourse = async function(courseId) {
+            if (!confirm('Usunąć kurs z "Moje kursy"?')) return;
+            const res = await fetch('/api/unfollow-course', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ courseId })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showContent('courses');
+                showContent('materials');
+            } else {
+                alert(data.error || 'Pomoc');
+            }
+        }
+
+        window.deleteCourse = async function(id) {
+            if (!confirm('Usunąć ten kurs?')) return;
+            const res = await fetch('/api/courses/' + id, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+            if (data.success) {
+                showContent('courses');
+            } else {
+                alert(data.error || 'Błąd usuwania kursu');
+            }
+        }
+
+        function searchMaterials() {
+            const query = document.getElementById('searchMaterialsInput').value.trim().toLowerCase();
+            const cards = document.querySelectorAll('#materialsList .course-card');
+            cards.forEach(card => {
+                card.style.display = card.innerText.toLowerCase().includes(query) ? '' : 'none';
+            });
+        }
+        function searchCourses() {
+            const query = document.getElementById('searchInput').value.trim().toLowerCase();
+            const cards = document.querySelectorAll('#coursesList .course-card');
+            cards.forEach(card => {
+                card.style.display = card.innerText.toLowerCase().includes(query) ? '' : 'none';
+            });
+        }
+
+        // --- КНОПКИ ХОВАТИ/ПОКАЗУВАТИ МЕНЮ ---
+        document.getElementById('toggleMenuBtn').onclick = function() {
+            document.getElementById('floatingMenu').classList.add('menu-hidden');
+            document.getElementById('showMenuBtn').style.display = '';
+        };
+        document.getElementById('showMenuBtn').onclick = function() {
+            document.getElementById('floatingMenu').classList.remove('menu-hidden');
+            document.getElementById('showMenuBtn').style.display = 'none';
+        };
+    </script>
+</body>
+</html>

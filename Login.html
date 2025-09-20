@@ -1,0 +1,108 @@
+<html>
+<head>
+    <title>Logowanie do systemu zarzadzania sylabusami</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(120deg, #181c24 0%, #232837 100%);
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-box {
+            background: rgba(35,40,55,0.98);
+            padding: 38px 38px 28px 38px;
+            border-radius: 18px;
+            box-shadow: 0 4px 32px #0005;
+            max-width: 370px;
+            width: 100%;
+        }
+        h2 {
+            text-align: center;
+            color: #1976d2;
+            margin-bottom: 24px;
+            letter-spacing: 1px;
+        }
+        input, button {
+            width: 100%;
+            padding: 13px 12px;
+            margin: 12px 0;
+            border-radius: 7px;
+            border: 1.5px solid #232837;
+            background: #181c24;
+            color: #f5f5f5;
+            font-size: 17px;
+            box-sizing: border-box;
+        }
+        input:focus {
+            outline: none;
+            border-color: #1976d2;
+            background: #232837;
+        }
+        button {
+            background: linear-gradient(90deg, #1976d2 60%, #2196f3 100%);
+            color: #fff;
+            border: none;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 18px;
+            box-shadow: 0 2px 8px #1976d233;
+            transition: background 0.18s, box-shadow 0.18s;
+        }
+        button:hover {
+            background: linear-gradient(90deg, #1251a3 60%, #1976d2 100%);
+            box-shadow: 0 4px 16px #1976d244;
+        }
+        #error {
+            color: #ef6c00;
+            text-align: center;
+            margin-top: 10px;
+            font-size: 15px;
+            min-height: 22px;
+        }
+        @media (max-width: 600px) {
+            .login-box { padding: 18px 6px 18px 6px; margin: 40px 8px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-box">
+        <h2>Logowanie do systemu zarzadzania sylabusami</h2>
+        <form id="loginForm" autocomplete="off">
+            <input name="email" type="email" placeholder="Email" required />
+            <input name="password" type="password" placeholder="password" required />
+            <button type="submit">Zaloguj</button>
+        </form>
+        <div id="error"></div>
+        <div id="testCourse"></div>
+        <div style="margin-top:20px; font-size:14px; color:#888; text-align:center;">
+            &copy; Społeczna Akademia Nauk
+</div>
+    </div>
+    <script>
+        document.getElementById('loginForm').onsubmit = async function(e) {
+            e.preventDefault();
+            const form = e.target;
+            const res2 = await fetch('/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    email: form.email.value,
+                    password: form.password.value
+                })
+            });
+            const data = await res2.json();
+            if(data.error) {
+                document.getElementById('error').innerText = data.error;
+            } else {
+                window.location = '/main';
+            }
+        }
+    </script>
+</script>
+</body>
+</html>
